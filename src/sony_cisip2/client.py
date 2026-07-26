@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Callable
 import contextlib
 import json
 import logging
-from typing import TYPE_CHECKING, Any, Callable
+from typing import TYPE_CHECKING, Any
 
 from .constants import (
     CMD_ID_INITIAL,
@@ -16,7 +17,6 @@ from .constants import (
     MSG_TYPE_NOTIFY,
     MSG_TYPE_RESULT,
     MSG_TYPE_SET,
-    RESPONSE_ACK,
     TCP_TIMEOUT,
 )
 
@@ -100,14 +100,15 @@ class SonyCISIP2:
             # Start listening for notifications
             await self._start_notification_listener()
 
+        except TimeoutError as err:
+            # TimeoutError subclasses OSError on 3.10+; handle before OSError.
+            self._connected = False
+            self.logger.exception("Connection timeout")
+            raise ConnectionError(f"Connection timeout: {err}") from err
         except OSError as err:
             self._connected = False
             self.logger.exception("Failed to connect to Sony device")
             raise ConnectionError(f"Failed to connect: {err}") from err
-        except asyncio.TimeoutError as err:
-            self._connected = False
-            self.logger.exception("Connection timeout")
-            raise ConnectionError(f"Connection timeout: {err}") from err
 
     async def disconnect(self) -> None:
         """Disconnect from the Sony device."""
@@ -231,11 +232,13 @@ class SonyCISIP2:
             feature: The feature name, or None for all features
             callback: The callback function to remove
         """
-        if feature in self._notification_callbacks:
-            if callback in self._notification_callbacks[feature]:
-                self._notification_callbacks[feature].remove(callback)
-                if not self._notification_callbacks[feature]:
-                    del self._notification_callbacks[feature]
+        if (
+            feature in self._notification_callbacks
+            and callback in self._notification_callbacks[feature]
+        ):
+            self._notification_callbacks[feature].remove(callback)
+            if not self._notification_callbacks[feature]:
+                del self._notification_callbacks[feature]
 
     async def _start_notification_listener(self) -> None:
         """Start the notification listener task."""
@@ -258,9 +261,7 @@ class SonyCISIP2:
                     if not self._reader:
                         break
 
-                    data = await asyncio.wait_for(
-                        self._reader.read(1024), timeout=1.0
-                    )
+                    data = await asyncio.wait_for(self._reader.read(1024), timeout=1.0)
 
                     if not data:
                         await asyncio.sleep(0.1)
@@ -352,9 +353,7 @@ class SonyCISIP2:
         except TimeoutError:
             if response_future and not response_future.done():
                 response_future.cancel()
-            self.logger.warning(
-                "Timeout waiting for response to command: %s", command
-            )
+            self.logger.warning("Timeout waiting for response to command: %s", command)
             return None
         finally:
             if command_id is not None:
@@ -473,4 +472,3 @@ class SonyCISIP2:
     ) -> None:
         """Async context manager exit."""
         await self.disconnect()
-

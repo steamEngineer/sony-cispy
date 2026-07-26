@@ -1,0 +1,107 @@
+[project]
+name = "sony-cisip2"
+dynamic = ["version"]
+description = "HA-agnostic async Sony CIS-IP2 client for AVRs and soundbars"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.12"
+authors = [{ name = "steamEngineer" }]
+keywords = [
+    "sony",
+    "cis-ip2",
+    "avr",
+    "soundbar",
+    "home-automation",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: 3 :: Only",
+    "Topic :: Home Automation",
+    "Topic :: System :: Networking",
+    "Typing :: Typed",
+]
+dependencies = []
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.24",
+    "pytest-cov>=5.0",
+    "ruff>=0.9",
+    "mypy>=1.14",
+    "build>=1.2",
+    "twine>=6.0",
+    "pre-commit>=4.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/steamEngineer/sony-cispy"
+Repository = "https://github.com/steamEngineer/sony-cispy"
+Issues = "https://github.com/steamEngineer/sony-cispy/issues"
+Changelog = "https://github.com/steamEngineer/sony-cispy/blob/main/CHANGELOG.md"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+path = "src/sony_cisip2/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/sony_cisip2"]
+
+[tool.hatch.build.targets.sdist]
+exclude = ["/reference"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 88
+extend-exclude = [
+    "reference",
+    # Catalog data: long protocol strings; keep source stable (no format rewrites).
+    "src/sony_cisip2/commandset.py",
+    "src/sony_cisip2/variables.py",
+    # Ruff formats fenced code in markdown; keep docs human-edited.
+    "*.md",
+]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "C4", "SIM"]
+
+[tool.ruff.lint.isort]
+force-sort-within-sections = true
+
+[tool.mypy]
+python_version = "3.12"
+mypy_path = "src"
+packages = ["sony_cisip2"]
+warn_unused_configs = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+no_implicit_optional = true
+check_untyped_defs = true
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src", "tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+addopts = [
+    "--cov=sony_cisip2",
+    "--cov-report=term-missing",
+]
+
+[tool.coverage.run]
+source = ["sony_cisip2"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false

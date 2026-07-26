@@ -1,6 +1,6 @@
 """Tests for constants module."""
 
-from sony_cispy import constants
+from sony_cisip2 import constants
 
 
 def test_default_port():
@@ -47,4 +47,3 @@ def test_feature_prefixes():
     assert constants.FEATURE_ZONE2 == "zone2."
     assert constants.FEATURE_AUDIO == "audio."
     assert constants.FEATURE_SYSTEM == "system."
-

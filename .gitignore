@@ -1,19 +1,23 @@
 # artifacts
-__pycache__
-.pytest*
-*.egg-info
-*/build/*
-*/dist/*
+__pycache__/
+.pytest_cache/
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
 
 # misc
 .coverage
 .vscode
 coverage.xml
-.ruff_cache
+.ruff_cache/
+.mypy_cache/
+htmlcov/
 
 # OS
 .DS_Store
 Thumbs.db
 
-# reference implementations (merged into sony_cispy/)
+# reference implementations (merged into src/sony_cisip2/)
 reference/bravia-quad-homeassistant
