@@ -61,6 +61,8 @@ async def test_connect_success(mock_connection):
         assert client._writer == mock_writer
         mock_open.assert_called_once_with("192.168.1.100", DEFAULT_PORT)
 
+        await client.disconnect()
+
 
 @pytest.mark.asyncio
 async def test_connect_failure():
@@ -123,7 +125,6 @@ async def test_disconnect_with_listener_task(mock_connection):
         mock_open.return_value = (mock_reader, mock_writer)
 
         await client.connect()
-        await client._start_notification_listener()
 
         assert client._listener_task is not None
 
@@ -225,9 +226,7 @@ async def test_command_timeout(mock_connection):
         with patch.object(client, "_get_next_command_id", return_value=13):
             result = await client.get_feature("main.power")
 
-        # Should return "Unknown Value" on timeout
-        assert result == "Unknown Value"
-        # Future should be cancelled/cleaned up
+        assert result is None
         assert 13 not in client._pending_responses
 
 
@@ -328,12 +327,13 @@ async def test_json_stream_decoding():
         '{"id":2,"type":"result","value":"50"}'
     )
 
-    messages = client._decode_json_stream(json_stream)
+    messages, remainder = client._decode_json_stream(json_stream)
 
     assert len(messages) == 3
     assert messages[0]["id"] == 1
     assert messages[1]["type"] == "notify"
     assert messages[2]["value"] == "50"
+    assert remainder == ""
 
 
 @pytest.mark.asyncio
@@ -343,25 +343,40 @@ async def test_json_stream_decoding_whitespace():
 
     json_stream = '   {"id":1,"type":"result"}   \n\n   {"id":2,"type":"result"}   '
 
-    messages = client._decode_json_stream(json_stream)
+    messages, remainder = client._decode_json_stream(json_stream)
 
     assert len(messages) == 2
     assert messages[0]["id"] == 1
     assert messages[1]["id"] == 2
+    assert remainder == ""
+
+
+@pytest.mark.asyncio
+async def test_json_stream_decoding_incomplete_remainder():
+    """Incomplete trailing JSON is returned as remainder, not dropped."""
+    client = SonyCISIP2(host="192.168.1.100", timeout=1.0)
+
+    json_stream = '{"id":1,"type":"result"}{"id":2,"type":"res'
+
+    messages, remainder = client._decode_json_stream(json_stream)
+
+    assert len(messages) == 1
+    assert messages[0]["id"] == 1
+    assert remainder == '{"id":2,"type":"res'
 
 
 @pytest.mark.asyncio
 async def test_json_stream_decoding_invalid():
-    """Test JSON stream decoding with invalid JSON."""
+    """Test JSON stream decoding with invalid JSON after a complete object."""
     client = SonyCISIP2(host="192.168.1.100", timeout=1.0)
 
     json_stream = '{"id":1,"type":"result"}{invalid json}'
 
-    messages = client._decode_json_stream(json_stream)
+    messages, remainder = client._decode_json_stream(json_stream)
 
-    # Should decode the first valid JSON and stop at invalid
     assert len(messages) == 1
     assert messages[0]["id"] == 1
+    assert remainder == "{invalid json}"
 
 
 @pytest.mark.asyncio
@@ -404,23 +419,18 @@ async def test_is_connected_not_connected():
 
 @pytest.mark.asyncio
 async def test_is_connected_success(mock_connection):
-    """Test is_connected when connected."""
+    """Test is_connected reflects the connection flag."""
     mock_reader, mock_writer = mock_connection
     client = SonyCISIP2(host="192.168.1.100", timeout=1.0)
-
-    response = {"id": 10, "type": "result", "feature": "main.power", "value": "on"}
 
     with patch("asyncio.open_connection", new_callable=AsyncMock) as mock_open:
         mock_open.return_value = (mock_reader, mock_writer)
 
         await client.connect()
+        assert await client.is_connected()
 
-        asyncio.create_task(_resolve_pending(client, 10, response))
-
-        with patch.object(client, "_get_next_command_id", return_value=10):
-            result = await client.is_connected()
-
-        assert result
+        await client.disconnect()
+        assert not await client.is_connected()
 
 
 @pytest.mark.asyncio
@@ -481,3 +491,53 @@ async def test_connect_when_already_connected(mock_connection):
         call_count = mock_open.call_count
         await client.connect()
         assert mock_open.call_count == call_count  # No new call
+
+
+@pytest.mark.asyncio
+async def test_get_feature_nak_returns_none(mock_connection):
+    """NAK / ERR / empty get values become None."""
+    mock_reader, mock_writer = mock_connection
+    client = SonyCISIP2(host="192.168.1.100", timeout=1.0)
+
+    with patch("asyncio.open_connection", new_callable=AsyncMock) as mock_open:
+        mock_open.return_value = (mock_reader, mock_writer)
+        await client.connect()
+
+        for value, cmd_id in (("NAK", 20), ("ERR", 21), ("", 22)):
+            response = {
+                "id": cmd_id,
+                "type": "result",
+                "feature": "main.power",
+                "value": value,
+            }
+            asyncio.create_task(_resolve_pending(client, cmd_id, response))
+            with patch.object(client, "_get_next_command_id", return_value=cmd_id):
+                assert await client.get_feature("main.power") is None
+
+        await client.disconnect()
+
+
+@pytest.mark.asyncio
+async def test_set_feature_timeout_returns_none(mock_connection):
+    """set_feature returns None on timeout."""
+    mock_reader, mock_writer = mock_connection
+    client = SonyCISIP2(host="192.168.1.100", timeout=0.1)
+
+    with patch("asyncio.open_connection", new_callable=AsyncMock) as mock_open:
+        mock_open.return_value = (mock_reader, mock_writer)
+        await client.connect()
+
+        with patch.object(client, "_get_next_command_id", return_value=30):
+            result = await client.set_feature("main.power", "on")
+
+        assert result is None
+        await client.disconnect()
+
+
+@pytest.mark.asyncio
+async def test_send_while_disconnected_raises():
+    """Commands raise immediately when not connected."""
+    client = SonyCISIP2(host="192.168.1.100", timeout=1.0)
+
+    with pytest.raises(ConnectionError, match="Not connected"):
+        await client.get_feature("main.power")

@@ -14,6 +14,13 @@ def test_tcp_timeout():
     assert isinstance(constants.TCP_TIMEOUT, float)
 
 
+def test_reconnect_delays():
+    """Test reconnect backoff constants."""
+    assert constants.RECONNECT_INITIAL_DELAY == 5.0
+    assert constants.RECONNECT_MAX_DELAY == 60.0
+    assert constants.RECONNECT_MAX_DELAY > constants.RECONNECT_INITIAL_DELAY
+
+
 def test_command_id_initial():
     """Test command ID initial value."""
     assert constants.CMD_ID_INITIAL == 10

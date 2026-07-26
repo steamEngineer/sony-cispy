@@ -11,11 +11,20 @@ import pytest
 from sony_cisip2 import SonyCISIP2
 
 
+async def _idle_read(*_args: object, **_kwargs: object) -> bytes:
+    """Block until cancelled so wait_for idle-polls without a busy loop.
+
+    Empty ``b""`` means EOF and must not be the default return value.
+    """
+    await asyncio.sleep(3600)
+    return b""
+
+
 @pytest.fixture
 def mock_reader() -> AsyncMock:
-    """Create a mock StreamReader."""
+    """Create a mock StreamReader that idles until cancelled."""
     reader = AsyncMock()
-    reader.read = AsyncMock(return_value=b"")
+    reader.read = AsyncMock(side_effect=_idle_read)
     return reader
 
 
