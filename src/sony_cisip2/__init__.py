@@ -8,5 +8,5 @@ from .client import SonyCISIP2
 from .commandset import commands_dict
 from .variables import variables_dict
 
-__version__ = "0.1.0a0"
+__version__ = "0.1.0a1"
 __all__ = ["SonyCISIP2", "commands_dict", "variables_dict", "__version__"]

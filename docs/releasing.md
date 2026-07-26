@@ -12,13 +12,14 @@
    uploads `sony-cisip2` to PyPI via Trusted Publishing, and creates a GitHub
    Release from the matching changelog section.
 
-The first PyPI publish is planned as **`0.1.0a1`** (tag `v0.1.0a1`). In-tree
-`0.1.0a0` is a packaging placeholder and is not intended for a tag.
+First PyPI release was **`0.1.0a1`** (tag `v0.1.0a1`). Do not tag placeholder
+versions that were never intended for publish.
 
 ## One-time: PyPI Trusted Publisher
 
 Before the first tag that should upload to PyPI, add a **pending Trusted
-Publisher** on PyPI for project **`sony-cisip2`**:
+Publisher** on PyPI for project **`sony-cisip2`** (already done for this
+repo):
 
 | Field | Value |
 |-------|--------|
@@ -27,4 +28,5 @@ Publisher** on PyPI for project **`sony-cisip2`**:
 | Workflow | `publish.yml` |
 | Environment | `pypi` |
 
+Also ensure a GitHub Actions Environment named `pypi` exists on the repo.
 The first successful tagged Publish run creates the PyPI project.
