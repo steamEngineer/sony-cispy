@@ -1,6 +1,6 @@
 # Reference Implementations
 
-This folder contains the original reference implementations that were merged to create the `sony-cispy` library.
+This folder contains the original reference implementations that were merged to create the `sony-cisip2` library.
 
 ## Contents
 
@@ -25,7 +25,7 @@ These reference implementations were used during development to merge the best a
 - The universal API from the old library
 - The robust connection handling from the bravia-quad integration
 
-The merged result is in the `sony_cispy/` directory.
+The merged result is in the `src/sony_cisip2/` directory.
 
 ## Git Exclusion
 
@@ -36,5 +36,5 @@ bravia-quad-homeassistant is excluded. Please go to the github repository to see
 If you need to reference these implementations:
 1. They are kept locally for historical reference
 2. The merge is documented in `MERGE_SUMMARY.md` in the root directory
-3. The current library (`sony_cispy/`) contains all the merged functionality
+3. The current library (`src/sony_cisip2/`) contains all the merged functionality
 

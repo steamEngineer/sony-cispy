@@ -4,12 +4,23 @@ from __future__ import annotations
 
 import asyncio
 import json
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from sony_cispy import SonyCISIP2
-from sony_cispy.constants import DEFAULT_PORT, MSG_TYPE_GET, MSG_TYPE_SET
+from sony_cisip2 import SonyCISIP2
+from sony_cisip2.constants import DEFAULT_PORT, MSG_TYPE_SET
+
+
+async def _resolve_pending(client: SonyCISIP2, command_id: int, response: dict) -> None:
+    """Resolve the pending future `_send_command` creates for `command_id`."""
+    for _ in range(100):
+        fut = client._pending_responses.get(command_id)
+        if fut is not None and not fut.done():
+            fut.set_result(response)
+            return
+        await asyncio.sleep(0.01)
+    raise AssertionError(f"pending response {command_id} never appeared")
 
 
 @pytest.mark.asyncio
@@ -71,7 +82,7 @@ async def test_connect_timeout():
     client = SonyCISIP2(host="192.168.1.100", timeout=0.1)
 
     with patch("asyncio.open_connection", new_callable=AsyncMock) as mock_open:
-        mock_open.side_effect = asyncio.TimeoutError()
+        mock_open.side_effect = TimeoutError()
 
         with pytest.raises(ConnectionError, match="Connection timeout"):
             await client.connect()
@@ -106,7 +117,7 @@ async def test_disconnect_with_listener_task(mock_connection):
     client = SonyCISIP2(host="192.168.1.100", timeout=1.0)
 
     # Mock the reader to return data that will timeout
-    mock_reader.read = AsyncMock(side_effect=asyncio.TimeoutError())
+    mock_reader.read = AsyncMock(side_effect=TimeoutError())
 
     with patch("asyncio.open_connection", new_callable=AsyncMock) as mock_open:
         mock_open.return_value = (mock_reader, mock_writer)
@@ -129,25 +140,14 @@ async def test_get_feature_success(mock_connection):
 
     # Mock response data
     response = {"id": 10, "type": "result", "feature": "main.power", "value": "on"}
-    response_data = json.dumps(response) + "\n"
 
     with patch("asyncio.open_connection", new_callable=AsyncMock) as mock_open:
         mock_open.return_value = (mock_reader, mock_writer)
 
         await client.connect()
 
-        # Create a future and set it up to be resolved when command is sent
-        response_future = asyncio.Future()
-        client._pending_responses[10] = response_future
+        asyncio.create_task(_resolve_pending(client, 10, response))
 
-        # Simulate response arriving
-        async def simulate_response():
-            await asyncio.sleep(0.01)
-            response_future.set_result(response)
-
-        asyncio.create_task(simulate_response())
-
-        # Mock command ID generation
         with patch.object(client, "_get_next_command_id", return_value=10):
             result = await client.get_feature("main.power")
 
@@ -168,18 +168,8 @@ async def test_set_feature_success(mock_connection):
 
         await client.connect()
 
-        # Create a future and set it up to be resolved when command is sent
-        response_future = asyncio.Future()
-        client._pending_responses[11] = response_future
+        asyncio.create_task(_resolve_pending(client, 11, response))
 
-        # Simulate response arriving
-        async def simulate_response():
-            await asyncio.sleep(0.01)
-            response_future.set_result(response)
-
-        asyncio.create_task(simulate_response())
-
-        # Mock command ID generation
         with patch.object(client, "_get_next_command_id", return_value=11):
             result = await client.set_feature("main.power", "on")
 
@@ -206,14 +196,7 @@ async def test_set_feature_with_none_value(mock_connection):
 
         await client.connect()
 
-        response_future = asyncio.Future()
-        client._pending_responses[12] = response_future
-
-        async def simulate_response():
-            await asyncio.sleep(0.01)
-            response_future.set_result(response)
-
-        asyncio.create_task(simulate_response())
+        asyncio.create_task(_resolve_pending(client, 12, response))
 
         with patch.object(client, "_get_next_command_id", return_value=12):
             result = await client.set_feature("main.power", None)
@@ -221,7 +204,7 @@ async def test_set_feature_with_none_value(mock_connection):
         assert result == "ACK"
         written_data = mock_writer.write.call_args[0][0].decode()
         command = json.loads(written_data.strip())
-        assert "value" in command  # Value should still be in command
+        assert "value" not in command
 
 
 @pytest.mark.asyncio
@@ -339,7 +322,11 @@ async def test_json_stream_decoding():
     client = SonyCISIP2(host="192.168.1.100", timeout=1.0)
 
     # Simulate multiple JSON objects in one string
-    json_stream = '{"id":1,"type":"result","value":"ACK"}\n{"type":"notify","feature":"main.power","value":"on"}\n{"id":2,"type":"result","value":"50"}'
+    json_stream = (
+        '{"id":1,"type":"result","value":"ACK"}\n'
+        '{"type":"notify","feature":"main.power","value":"on"}\n'
+        '{"id":2,"type":"result","value":"50"}'
+    )
 
     messages = client._decode_json_stream(json_stream)
 
@@ -428,14 +415,7 @@ async def test_is_connected_success(mock_connection):
 
         await client.connect()
 
-        response_future = asyncio.Future()
-        client._pending_responses[10] = response_future
-
-        async def simulate_response():
-            await asyncio.sleep(0.01)
-            response_future.set_result(response)
-
-        asyncio.create_task(simulate_response())
+        asyncio.create_task(_resolve_pending(client, 10, response))
 
         with patch.object(client, "_get_next_command_id", return_value=10):
             result = await client.is_connected()
@@ -501,4 +481,3 @@ async def test_connect_when_already_connected(mock_connection):
         call_count = mock_open.call_count
         await client.connect()
         assert mock_open.call_count == call_count  # No new call
-

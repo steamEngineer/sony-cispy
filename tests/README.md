@@ -1,6 +1,6 @@
 # Tests
 
-This directory contains unit tests for the `sony-cispy` library.
+This directory contains unit tests for the `sony-cisip2` library.
 
 ## Running Tests
 
@@ -31,7 +31,7 @@ pytest tests/test_client.py::test_connect_success
 ### Run with coverage
 
 ```bash
-pytest --cov=sony_cispy --cov-report=html
+pytest --cov=sony_cisip2 --cov-report=html
 ```
 
 ## Test Structure
@@ -59,7 +59,7 @@ All network connections are mocked, so tests can run without requiring a real So
 Tests require the development dependencies:
 
 ```bash
-pip install -r requirements-dev.txt
+pip install -e ".[dev]"
 ```
 
 ## Continuous Integration

@@ -1,4 +1,4 @@
-# sony-cispy
+# sony-cisip2
 
 A modern Python library for controlling Sony Audio/Video Receivers (AVRs) and Soundbars that support the CIS-IP2 protocol over Ethernet/IP.
 
@@ -15,15 +15,16 @@ A modern Python library for controlling Sony Audio/Video Receivers (AVRs) and So
 ## Installation
 
 ```bash
-# For now, install from source
-pip install -e /path/to/sony-cispy
+pip install sony-cisip2
+# or from a checkout:
+pip install -e ".[dev]"
 ```
 
 ## Basic Usage
 
 ```python
 import asyncio
-from sony_cispy import SonyCISIP2
+from sony_cisip2 import SonyCISIP2
 
 async def main():
     # Create client
@@ -56,7 +57,7 @@ asyncio.run(main())
 
 ```python
 import asyncio
-from sony_cispy import SonyCISIP2
+from sony_cisip2 import SonyCISIP2
 
 async def main():
     async with SonyCISIP2(host="192.168.1.100") as client:
@@ -74,7 +75,7 @@ Register callbacks to receive real-time notifications when device state changes:
 
 ```python
 import asyncio
-from sony_cispy import SonyCISIP2
+from sony_cisip2 import SonyCISIP2
 
 async def on_power_change(feature, value):
     print(f"Power changed to: {value}")
@@ -109,7 +110,7 @@ asyncio.run(main())
 Access the full CIS-IP2 command set to discover available features:
 
 ```python
-from sony_cispy import commands_dict
+from sony_cisip2 import commands_dict
 
 # List all available commands
 for feature, details in commands_dict.items():
@@ -139,7 +140,7 @@ for feature, details in commands_dict.items():
 
 ## Requirements
 
-- Python 3.13+
+- Python 3.12+
 - asyncio (standard library)
 
 ## License

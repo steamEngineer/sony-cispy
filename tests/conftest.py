@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 import asyncio
-from typing import AsyncGenerator
+from collections.abc import AsyncGenerator
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from sony_cispy import SonyCISIP2
+from sony_cisip2 import SonyCISIP2
 
 
 @pytest.fixture
@@ -81,4 +81,3 @@ def sample_notification() -> dict:
         "feature": "main.power",
         "value": "off",
     }
-

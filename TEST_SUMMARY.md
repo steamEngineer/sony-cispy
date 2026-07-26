@@ -1,6 +1,6 @@
 # Test Suite Summary
 
-A comprehensive unit test suite has been created for the `sony-cispy` library.
+A comprehensive unit test suite has been created for the `sony-cisip2` library.
 
 ## Test Files Created
 
@@ -101,7 +101,7 @@ A comprehensive unit test suite has been created for the `sony-cispy` library.
 ### Install Dependencies
 
 ```bash
-pip install -r requirements-dev.txt
+pip install -e ".[dev]"
 ```
 
 ### Run All Tests
@@ -125,7 +125,7 @@ pytest tests/test_client.py
 ### Run with Coverage
 
 ```bash
-pytest --cov=sony_cispy --cov-report=html
+pytest --cov=sony_cisip2 --cov-report=html
 ```
 
 ## Test Features
@@ -148,7 +148,7 @@ pytest --cov=sony_cispy --cov-report=html
 To run the tests, install the development dependencies:
 
 ```bash
-pip install -r requirements-dev.txt
+pip install -e ".[dev]"
 pytest
 ```
 

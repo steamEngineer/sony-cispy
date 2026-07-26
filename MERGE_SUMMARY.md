@@ -30,7 +30,7 @@ This document summarizes the merge of the old `python_sonycisip2-0.2.5` library 
 ## File Structure
 
 ```
-sony_cispy/
+src/sony_cisip2/
 ├── __init__.py          # Package exports
 ├── client.py            # Main SonyCISIP2 client class
 ├── constants.py         # Protocol constants
@@ -45,7 +45,7 @@ The new library maintains API compatibility where possible, but:
 
 - **Connection**: Now uses async context manager pattern (optional but recommended)
 - **Response Handling**: More reliable but slightly different internal implementation
-- **Python Version**: Requires Python 3.13+ (updated from 3.6+)
+- **Python Version**: Requires Python 3.12+ (updated from 3.6+)
 
 ## Migration Guide
 
@@ -81,7 +81,7 @@ async with SonyCISIP2(host, port) as client:
 3. ✅ Universal API preserved
 4. ✅ Command set preserved
 5. ✅ Add unit tests
-6. ⏳ Add setup.py/pyproject.toml for distribution
+6. ✅ Add pyproject.toml for distribution (PyPI name sony-cisip2)
 7. ⏳ Add more examples
 8. ⏳ Add type stubs for better IDE support
 

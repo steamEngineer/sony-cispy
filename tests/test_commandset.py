@@ -1,6 +1,6 @@
 """Tests for commandset module."""
 
-from sony_cispy import commands_dict
+from sony_cisip2 import commands_dict
 
 
 def test_commands_dict_exists():
@@ -52,4 +52,3 @@ def test_command_feature_format():
         assert "." in feature or feature.startswith(("GUI", "system")), (
             f"Unexpected feature format: {feature}"
         )
-

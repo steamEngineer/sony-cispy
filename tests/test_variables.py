@@ -1,6 +1,6 @@
 """Tests for variables module."""
 
-from sony_cispy import variables_dict
+from sony_cisip2 import variables_dict
 
 
 def test_variables_dict_exists():
@@ -44,4 +44,3 @@ def test_soundfield_variables():
         soundfields = variables_dict["SOUNDFIELD_VARIABLES"]
         assert isinstance(soundfields, set)
         assert len(soundfields) > 0
-

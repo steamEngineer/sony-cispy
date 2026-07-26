@@ -1,2 +1,1 @@
-"""Tests for sony-cispy library."""
-
+"""Tests for sony-cisip2 library."""

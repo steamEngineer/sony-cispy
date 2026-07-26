@@ -1,0 +1,112 @@
+---
+# Labels for the repository — synced by .github/workflows/labels.yml
+# Used by release-drafter for changelog categories.
+#
+# PR template labels (keep in sync with .github/PULL_REQUEST_TEMPLATE.md
+# and the `known` list in .github/workflows/pr-labels.yaml):
+#   breaking-change, new-feature, enhancement, bugfix, refactor,
+#   documentation, maintenance, ci, dependencies, skip-changelog
+
+# --- PR template (release-drafter primary) ---
+
+- name: "breaking-change"
+  color: "b60205"
+  description: "Breaking change"
+
+- name: "new-feature"
+  color: "a2eeef"
+  description: "New feature"
+
+- name: "enhancement"
+  color: "84b6eb"
+  description: "Enhancement to an existing feature"
+
+- name: "bugfix"
+  color: "d73a4a"
+  description: "Bugfix"
+
+- name: "refactor"
+  color: "84b6eb"
+  description: "Refactor (no behaviour change)"
+
+- name: "documentation"
+  color: "0075ca"
+  description: "Documentation only"
+
+- name: "maintenance"
+  color: "fef2c0"
+  description: "Maintenance / chore"
+
+- name: "ci"
+  color: "fef2c0"
+  description: "CI / workflow change"
+
+- name: "dependencies"
+  color: "0366d6"
+  description: "Dependencies bump"
+
+- name: "skip-changelog"
+  color: "ededed"
+  description: "Skip changelog"
+
+# --- Release-drafter aliases (legacy PRs; not in PR template) ---
+
+- name: "feature"
+  color: "a2eeef"
+  description: "New feature (alias — use new-feature in PR template)"
+
+- name: "bug"
+  color: "d73a4a"
+  description: "Bugfix (alias — use bugfix in PR template)"
+
+- name: "fix"
+  color: "d73a4a"
+  description: "Bugfix (alias — use bugfix in PR template)"
+
+- name: "chore"
+  color: "fef2c0"
+  description: "Maintenance (alias — use maintenance in PR template)"
+
+- name: "docs"
+  color: "0075ca"
+  description: "Documentation (alias — use documentation in PR template)"
+
+- name: "performance"
+  color: "84b6eb"
+  description: "Performance improvement"
+
+# --- Version bumps (manual / release tooling) ---
+
+- name: "major"
+  color: "b60205"
+  description: "Major version bump"
+
+- name: "minor"
+  color: "fbca04"
+  description: "Minor version bump"
+
+# --- Issues ---
+
+- name: "question"
+  color: "d876e3"
+  description: "Further information is requested"
+
+- name: "good first issue"
+  color: "7057ff"
+  description: "Good for newcomers"
+
+- name: "help wanted"
+  color: "008672"
+  description: "Extra attention is needed"
+
+- name: "wontfix"
+  color: "ffffff"
+  description: "This will not be worked on"
+
+- name: "duplicate"
+  color: "cfd3d7"
+  description: "This issue or pull request already exists"
+
+- name: "invalid"
+  color: "e4e669"
+  description: "This doesn't seem right"

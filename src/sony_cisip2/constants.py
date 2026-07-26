@@ -40,4 +40,3 @@ FEATURE_BASS = "bass."
 FEATURE_TREBLE = "treble."
 FEATURE_NETWORK = "network."
 FEATURE_TUNER = "tuner."
-

@@ -1,7 +1,8 @@
-"""Example usage of the sony-cispy library."""
+"""Example usage of the sony-cisip2 library."""
 
 import asyncio
-from sony_cispy import SonyCISIP2
+
+from sony_cisip2 import SonyCISIP2
 
 
 async def example_basic_usage():
@@ -47,7 +48,7 @@ async def example_context_manager():
 
 async def example_notifications():
     """Example with notification callbacks."""
-    
+
     async def on_power_change(feature, value):
         print(f"⚡ Power changed to: {value}")
 
@@ -58,39 +59,42 @@ async def example_notifications():
         print(f"📢 {feature} changed to {value}")
 
     client = SonyCISIP2(host="10.0.110.130")
-    
+
     try:
         await client.connect()
-        
+
         # Register callbacks
         client.register_notification_callback("main.power", on_power_change)
         client.register_notification_callback("main.volumestep", on_volume_change)
         client.register_notification_callback(None, on_any_change)  # All notifications
-        
+
         print("Listening for notifications for 30 seconds...")
         print("(Try changing volume or power on the device)")
         await asyncio.sleep(30)
-        
+
     finally:
         await client.disconnect()
 
 
 async def example_command_discovery():
     """Example of discovering available commands."""
-    from sony_cispy import commands_dict
+    from sony_cisip2 import commands_dict
 
     print("Available CIS-IP2 commands:")
     print("=" * 60)
-    
+
     # Show first 10 commands as example
     for i, (feature, details) in enumerate(commands_dict.items()):
         if i >= 10:
             print(f"\n... and {len(commands_dict) - 10} more commands")
             break
-        
+
         print(f"\n{feature}")
         print(f"  Description: {details['description']}")
-        print(f"  Set: {details['set']}, Get: {details['get']}, Notify: {details['notify']}")
+        print(
+            f"  Set: {details['set']}, Get: {details['get']}, "
+            f"Notify: {details['notify']}"
+        )
 
 
 if __name__ == "__main__":
@@ -98,10 +102,9 @@ if __name__ == "__main__":
     print("=" * 60)
     print("\nNote: Replace '10.0.110.130' with your device IP address")
     print("\nUncomment the example you want to run:\n")
-    
+
     # Uncomment the example you want to run:
     asyncio.run(example_basic_usage())
     # asyncio.run(example_context_manager())
     # asyncio.run(example_notifications())
     asyncio.run(example_command_discovery())
-
