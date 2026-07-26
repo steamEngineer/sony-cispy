@@ -19,8 +19,8 @@ that speak CIS-IP2 can depend on this package.
 
 ## Status
 
-**Alpha** (`0.1.0a0` in-tree; first PyPI publish planned as `0.1.0a1`). APIs may
-change before 1.0. See [CHANGELOG.md](CHANGELOG.md).
+**Alpha** (`0.1.0a1` on PyPI). APIs may change before 1.0. See
+[CHANGELOG.md](CHANGELOG.md).
 
 ## Features
 

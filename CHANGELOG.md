@@ -7,11 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0a1] - 2026-07-26
+
 ### Added
 
 - Hatchling packaging as PyPI name `sony-cisip2` (import `sony_cisip2`).
-- `src/` layout, `__version__ = "0.1.0a0"`, CI (lint/mypy/pytest matrix/build),
-  and tag-based Publish workflow with Trusted Publishing.
+- `src/` layout, initial `__version__` / Hatch packaging, CI
+  (lint/mypy/pytest matrix/build), and tag-based Publish workflow with
+  Trusted Publishing.
 - Changelog, releasing docs, and agent/PR templates mirrored from sibling
   packaging practices.
 - Auto-reconnect with exponential backoff after unexpected TCP drops
@@ -35,3 +38,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Empty TCP read (EOF) and listener `OSError` mark the client disconnected and
   fail pending command futures.
+
+[Unreleased]: https://github.com/steamEngineer/sony-cispy/compare/v0.1.0a1...HEAD
+[0.1.0a1]: https://github.com/steamEngineer/sony-cispy/releases/tag/v0.1.0a1
