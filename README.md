@@ -121,9 +121,13 @@ CISIP2_HOST=<device-ip> python tools/live_smoke.py
 
 Release process: [docs/releasing.md](docs/releasing.md).
 
+## Credits
+
+- [@liudger](https://github.com/liudger) (Willem-Jan van Rootselaar) — substantial CIS-IP2 client work in [bravia-quad-homeassistant](https://github.com/steamEngineer/bravia-quad-homeassistant) (reconnect/availability, notifications, volume transitions, and related TCP control paths) that this library was extracted from
+
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT — see [LICENSE](LICENSE). Copyright holders are listed in [LICENSE](LICENSE).
 
 ## Disclaimer
 
