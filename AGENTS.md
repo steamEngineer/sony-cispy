@@ -18,6 +18,8 @@
 - `mypy` — type check
 - `pytest -q` — unit tests
 - `python -m build && twine check dist/*` — packaging check when metadata/build changes
+- Optional live smoke (not CI): `CISIP2_HOST=<ip> python tools/live_smoke.py`
+  (`CISIP2_SKIP_EXEC=1` for connect + get only)
 
 Run ruff, mypy, and pytest after code changes.
 

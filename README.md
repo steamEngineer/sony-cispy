@@ -27,7 +27,8 @@ change before 1.0. See [CHANGELOG.md](CHANGELOG.md).
 - Universal `get_feature()` / `set_feature()` API for any CIS-IP2 feature
 - Command ID tracking with futures for reliable request/response matching
 - Real-time notification callbacks
-- JSON stream decoding for multi-message reads
+- JSON stream decoding with remainder across TCP read fragments
+- Auto-reconnect with exponential backoff after unexpected drops
 - Full command catalog via `commands_dict`
 - Stdlib only (no runtime dependencies)
 - Async/await (Python 3.12+)
@@ -67,8 +68,12 @@ from sony_cisip2 import SonyCISIP2
 async def main():
     async with SonyCISIP2(host="192.168.1.100") as client:
         power = await client.get_feature("main.power")
+        if power is None:
+            print("get main.power timed out or failed")
+            return
         print(f"Power: {power}")
-        await client.set_feature("main.volumestep", 50)
+        result = await client.set_feature("main.volumestep", 50)
+        print(f"set volume: {result}")
 
 asyncio.run(main())
 ```
@@ -91,6 +96,7 @@ sony-cispy/                 # GitHub repo root
 │   ├── constants.py
 │   └── variables.py
 ├── tests/
+├── tools/live_smoke.py     # Manual device smoke (CISIP2_HOST; not in CI)
 ├── reference/              # Historical sources (not shipped in the wheel)
 ├── example.py
 └── pyproject.toml
@@ -104,6 +110,13 @@ ruff check . && ruff format --check .
 mypy
 pytest -q
 python -m build && twine check dist/*
+```
+
+Optional live smoke against a device on your LAN (not run in CI):
+
+```bash
+CISIP2_HOST=<device-ip> CISIP2_SKIP_EXEC=1 python tools/live_smoke.py
+CISIP2_HOST=<device-ip> python tools/live_smoke.py
 ```
 
 Release process: [docs/releasing.md](docs/releasing.md).

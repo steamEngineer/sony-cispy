@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable, Coroutine
 import contextlib
+import inspect
 import json
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from .constants import (
     CMD_ID_INITIAL,
@@ -17,11 +18,12 @@ from .constants import (
     MSG_TYPE_NOTIFY,
     MSG_TYPE_RESULT,
     MSG_TYPE_SET,
+    RECONNECT_INITIAL_DELAY,
+    RECONNECT_MAX_DELAY,
+    RESPONSE_ERR,
+    RESPONSE_NAK,
     TCP_TIMEOUT,
 )
-
-if TYPE_CHECKING:
-    from collections.abc import Awaitable
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -29,16 +31,14 @@ _LOGGER = logging.getLogger(__name__)
 class SonyCISIP2:
     """Client for Sony CIS-IP2 protocol communication.
 
-    This class provides a robust, modern implementation for controlling Sony
-    Audio/Video Receivers (AVRs) and Soundbars that support the CIS-IP2 protocol.
-
     Features:
-    - Command ID tracking with futures for reliable request/response matching
-    - JSON stream decoding for handling multiple messages in one read
-    - Timeout handling for all network operations
-    - Real-time notification callbacks
-    - Generic get_feature/set_feature API
-    - Automatic connection management
+    - Command ID tracking with futures for request/response matching
+    - JSON stream decoding with unparsed remainder across TCP reads
+    - Auto-reconnect with exponential backoff after unexpected drops
+      (``RECONNECT_INITIAL_DELAY`` → double → ``RECONNECT_MAX_DELAY``)
+    - Optional ``on_reconnect`` hook scheduled after a successful reconnect
+    - Notification callbacks; ``get_feature`` / ``set_feature`` return
+      ``None`` on timeout or miss (never sentinel strings)
     """
 
     def __init__(
@@ -46,6 +46,7 @@ class SonyCISIP2:
         host: str,
         port: int = DEFAULT_PORT,
         timeout: float = TCP_TIMEOUT,
+        on_reconnect: Callable[[], Coroutine[Any, Any, None]] | None = None,
     ) -> None:
         """Initialize the Sony CIS-IP2 client.
 
@@ -53,10 +54,15 @@ class SonyCISIP2:
             host: IP address of the Sony device
             port: TCP port (default: 33336)
             timeout: Timeout for network operations in seconds (default: 10.0)
+            on_reconnect: Optional async callback scheduled (not awaited inline)
+                after a successful automatic reconnect
         """
         self.host = host
         self.port = port
         self.timeout = timeout
+        self._on_reconnect: Callable[[], Coroutine[Any, Any, None]] | None = (
+            on_reconnect
+        )
 
         # Connection state
         self._reader: asyncio.StreamReader | None = None
@@ -72,14 +78,15 @@ class SonyCISIP2:
         # Notification callbacks
         self._notification_callbacks: dict[str | None, list[Callable]] = {}
 
-        # Background listener task
+        # Background tasks
         self._listener_task: asyncio.Task | None = None
+        self._background_tasks: set[asyncio.Task[Any]] = set()
 
         # Logger
         self.logger = _LOGGER
 
     async def connect(self) -> None:
-        """Connect to the Sony device.
+        """Connect to the Sony device and start the connection manager.
 
         Raises:
             ConnectionError: If connection fails
@@ -87,6 +94,11 @@ class SonyCISIP2:
         if self._connected:
             return
 
+        await self._open_socket()
+        self._start_listener()
+
+    async def _open_socket(self) -> None:
+        """Open the TCP socket without starting the connection manager."""
         try:
             self._reader, self._writer = await asyncio.wait_for(
                 asyncio.open_connection(self.host, self.port),
@@ -96,10 +108,6 @@ class SonyCISIP2:
             await asyncio.sleep(0.1)
             self._connected = True
             self.logger.info("Connected to Sony device at %s:%s", self.host, self.port)
-
-            # Start listening for notifications
-            await self._start_notification_listener()
-
         except TimeoutError as err:
             # TimeoutError subclasses OSError on 3.10+; handle before OSError.
             self._connected = False
@@ -111,17 +119,26 @@ class SonyCISIP2:
             raise ConnectionError(f"Failed to connect: {err}") from err
 
     async def disconnect(self) -> None:
-        """Disconnect from the Sony device."""
+        """Disconnect from the Sony device and stop auto-reconnect."""
         self._listening = False
 
-        # Cancel listener task
         if self._listener_task:
             self._listener_task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await self._listener_task
             self._listener_task = None
 
-        # Close connection
+        for task in self._background_tasks:
+            task.cancel()
+        if self._background_tasks:
+            await asyncio.gather(*self._background_tasks, return_exceptions=True)
+        self._background_tasks.clear()
+
+        await self._close_connection()
+        self.logger.info("Disconnected from Sony device")
+
+    async def _close_connection(self) -> None:
+        """Close the socket and fail pending command futures."""
         if self._writer:
             self._writer.close()
             with contextlib.suppress(OSError):
@@ -131,40 +148,30 @@ class SonyCISIP2:
         self._writer = None
         self._connected = False
 
-        # Fail any pending command futures
         for future in self._pending_responses.values():
             if not future.done():
                 future.set_exception(ConnectionError("Disconnected"))
         self._pending_responses.clear()
 
-        self.logger.info("Disconnected from Sony device")
+    async def _mark_disconnected(self) -> None:
+        """Mark connection as lost and clean up."""
+        was_connected = self._connected
+        await self._close_connection()
+        if was_connected:
+            self.logger.warning("Connection to Sony device lost")
 
     async def is_connected(self) -> bool:
-        """Check if connected to the device.
+        """Return whether the client currently has an open connection."""
+        return self._connected
 
-        Returns:
-            True if connected, False otherwise
-        """
-        if not self._connected:
-            return False
-
-        # Try a simple command to verify connection
-        try:
-            await self.get_feature("main.power")
-            return True
-        except Exception:
-            return False
-
-    async def get_feature(self, feature: str) -> Any:
+    async def get_feature(self, feature: str) -> Any | None:
         """Get the value of a feature.
-
-        This is a universal method that works with any CIS-IP2 feature.
 
         Args:
             feature: The feature name (e.g., "main.power", "main.volumestep")
 
         Returns:
-            The feature value, or "Unknown Value" if the request fails
+            The feature value, or ``None`` on timeout, miss, NAK, or ERR
 
         Example:
             >>> power = await client.get_feature("main.power")
@@ -172,20 +179,21 @@ class SonyCISIP2:
         """
         response = await self._send_command(MSG_TYPE_GET, feature)
         if response and response.get("type") == MSG_TYPE_RESULT:
-            return response.get("value", "Unknown Value")
-        return "Unknown Value"
+            value = response.get("value")
+            if value and value not in (RESPONSE_NAK, RESPONSE_ERR):
+                return value
+        return None
 
-    async def set_feature(self, feature: str, value: Any) -> str:
+    async def set_feature(self, feature: str, value: Any) -> str | None:
         """Set a feature to a specific value.
-
-        This is a universal method that works with any CIS-IP2 feature.
 
         Args:
             feature: The feature name (e.g., "main.power", "main.volumestep")
             value: The value to set (can be string, number, etc.)
 
         Returns:
-            "ACK" if successful, "NAK", "ERR", or "Unknown Response" otherwise
+            Device result string (``ACK``, ``NAK``, ``ERR``, …), or ``None``
+            on timeout or miss
 
         Example:
             >>> result = await client.set_feature("main.power", "on")
@@ -193,8 +201,10 @@ class SonyCISIP2:
         """
         response = await self._send_command(MSG_TYPE_SET, feature, value)
         if response and response.get("type") == MSG_TYPE_RESULT:
-            return response.get("value", "Unknown Response")
-        return "Unknown Response"
+            value_out = response.get("value")
+            if value_out is not None:
+                return str(value_out)
+        return None
 
     def register_notification_callback(
         self,
@@ -240,56 +250,74 @@ class SonyCISIP2:
             if not self._notification_callbacks[feature]:
                 del self._notification_callbacks[feature]
 
-    async def _start_notification_listener(self) -> None:
-        """Start the notification listener task."""
+    def _start_listener(self) -> None:
+        """Start the connection manager task if not already running."""
         if self._listener_task and not self._listener_task.done():
             return
 
-        if not self._connected:
-            await self.connect()
+        self._listener_task = asyncio.create_task(self._connection_manager())
 
-        self._listener_task = asyncio.create_task(self._notification_loop())
+    async def _connection_manager(self) -> None:
+        """Run the read loop and reconnect with exponential backoff on drop."""
+        try:
+            while True:
+                await self._notification_loop()
+
+                delay = RECONNECT_INITIAL_DELAY
+                while True:
+                    self.logger.debug("Reconnecting in %ss", delay)
+                    await asyncio.sleep(delay)
+
+                    try:
+                        await self._open_socket()
+                    except (OSError, ConnectionError):
+                        delay = min(delay * 2, RECONNECT_MAX_DELAY)
+                        continue
+
+                    self.logger.info("Reconnected to device")
+                    break
+
+                if self._on_reconnect is not None:
+                    task: asyncio.Task[None] = asyncio.create_task(self._on_reconnect())
+                    self._background_tasks.add(task)
+                    task.add_done_callback(self._background_tasks.discard)
+        except asyncio.CancelledError:
+            self.logger.info("Connection manager cancelled")
+            raise
 
     async def _notification_loop(self) -> None:
-        """Listen for real-time notifications from the device."""
+        """Read and dispatch messages until EOF or a connection error."""
         self._listening = True
         self.logger.info("Starting notification listener")
+        buffer = ""
 
         try:
-            while self._listening and self._connected:
+            while self._connected and self._reader:
                 try:
-                    if not self._reader:
-                        break
-
-                    data = await asyncio.wait_for(self._reader.read(1024), timeout=1.0)
+                    data = await asyncio.wait_for(self._reader.read(8192), timeout=1.0)
 
                     if not data:
-                        await asyncio.sleep(0.1)
-                        continue
+                        self.logger.warning("Connection closed by device (EOF)")
+                        break
 
-                    response_str = data.decode("utf-8", errors="replace").strip()
-                    if not response_str:
-                        continue
-
-                    messages = self._decode_json_stream(response_str)
-                    if not messages:
-                        continue
-
-                    for message in messages:
-                        await self._process_incoming_message(message)
+                    buffer += data.decode("utf-8", errors="replace")
+                    buffer = buffer.strip()
+                    if buffer:
+                        messages, buffer = self._decode_json_stream(buffer)
+                        for message in messages:
+                            await self._process_incoming_message(message)
 
                 except TimeoutError:
                     continue
-                except asyncio.CancelledError:
-                    raise
                 except OSError:
-                    self.logger.exception("Error in notification listener")
-                    await asyncio.sleep(1.0)
+                    self.logger.warning("Connection error in notification listener")
+                    break
         except asyncio.CancelledError:
             self.logger.info("Notification listener cancelled")
             raise
         finally:
             self._listening = False
+            await self._mark_disconnected()
             self.logger.info("Notification listener stopped")
 
     async def _send_command(
@@ -306,30 +334,28 @@ class SonyCISIP2:
             value: Optional value for "set" commands
 
         Returns:
-            The response message, or None on timeout/error
-        """
-        if not self._connected:
-            await self.connect()
+            The response message, or None on timeout
 
-        if not self._writer or not self._reader:
+        Raises:
+            ConnectionError: If not connected or the write fails
+        """
+        if not self._connected or not self._writer or not self._reader:
             raise ConnectionError("Not connected to device")
 
         if not self._listener_task or self._listener_task.done():
-            await self._start_notification_listener()
+            self._start_listener()
 
         response_future: asyncio.Future[dict[str, Any]] | None = None
         command_id: int | None = None
+        command: dict[str, Any] = {
+            "type": message_type,
+            "feature": feature,
+        }
+        if value is not None:
+            command["value"] = value
 
         async with self._command_lock:
             try:
-                # Assign a unique command id
-                command: dict[str, Any] = {
-                    "type": message_type,
-                    "feature": feature,
-                }
-                if value is not None:
-                    command["value"] = value
-
                 command_id = self._get_next_command_id()
                 command["id"] = command_id
 
@@ -342,22 +368,21 @@ class SonyCISIP2:
                 self._writer.write(command_json.encode())
                 await self._writer.drain()
             except OSError as err:
-                if command_id is not None and command_id in self._pending_responses:
+                if command_id is not None:
                     self._pending_responses.pop(command_id, None)
                 self.logger.exception("Error sending command")
                 raise ConnectionError(f"Error sending command: {err}") from err
 
-        try:
-            response = await asyncio.wait_for(response_future, timeout=self.timeout)
-            return response
-        except TimeoutError:
-            if response_future and not response_future.done():
-                response_future.cancel()
-            self.logger.warning("Timeout waiting for response to command: %s", command)
-            return None
-        finally:
-            if command_id is not None:
-                self._pending_responses.pop(command_id, None)
+            try:
+                return await asyncio.wait_for(response_future, timeout=self.timeout)
+            except TimeoutError:
+                self.logger.warning(
+                    "Timeout waiting for response to command: %s", command
+                )
+                return None
+            finally:
+                if command_id is not None:
+                    self._pending_responses.pop(command_id, None)
 
     def _get_next_command_id(self) -> int:
         """Return a unique command id."""
@@ -366,21 +391,22 @@ class SonyCISIP2:
             self._command_id_counter = CMD_ID_INITIAL
         return self._command_id_counter
 
-    def _decode_json_stream(self, data: str) -> list[dict[str, Any]]:
-        """Decode one or more JSON objects from a buffer string.
+    def _decode_json_stream(self, data: str) -> tuple[list[dict[str, Any]], str]:
+        """Decode JSON objects from a buffer, returning unparsed remainder.
 
-        Handles cases where multiple JSON objects arrive in a single read.
+        The device may send concatenated JSON objects with no delimiter.
+        A single TCP read may split an object; the remainder is returned so
+        the caller can prepend it to the next read.
         """
         messages: list[dict[str, Any]] = []
         if not data:
-            return messages
+            return messages, ""
 
         decoder = json.JSONDecoder()
         idx = 0
         length = len(data)
 
         while idx < length:
-            # Skip whitespace between JSON objects
             while idx < length and data[idx].isspace():
                 idx += 1
 
@@ -391,15 +417,10 @@ class SonyCISIP2:
                 message, end = decoder.raw_decode(data, idx)
                 messages.append(message)
                 idx = end
-            except json.JSONDecodeError as err:
-                self.logger.warning(
-                    "Failed to decode JSON chunk: %s (remaining=%s)",
-                    err,
-                    data[idx:],
-                )
-                break
+            except json.JSONDecodeError:
+                return messages, data[idx:]
 
-        return messages
+        return messages, ""
 
     async def _process_incoming_message(self, message: dict[str, Any]) -> None:
         """Process a single incoming message from the device."""
@@ -437,22 +458,20 @@ class SonyCISIP2:
         self, feature: str | None, value: Any
     ) -> None:
         """Invoke registered callbacks for a notification."""
-        # Call feature-specific callbacks
         if feature and feature in self._notification_callbacks:
             for callback in self._notification_callbacks[feature]:
                 try:
-                    if asyncio.iscoroutinefunction(callback):
+                    if inspect.iscoroutinefunction(callback):
                         await callback(feature, value)
                     else:
                         callback(feature, value)
                 except Exception:
                     self.logger.exception("Error in notification callback")
 
-        # Call general callbacks (None key)
         if None in self._notification_callbacks:
             for callback in self._notification_callbacks[None]:
                 try:
-                    if asyncio.iscoroutinefunction(callback):
+                    if inspect.iscoroutinefunction(callback):
                         await callback(feature, value)
                     else:
                         callback(feature, value)

@@ -8,6 +8,10 @@ DEFAULT_PORT = 33336
 # Timeout for TCP operations (in seconds)
 TCP_TIMEOUT = 10.0
 
+# Reconnection delays (seconds); sleep then try; double on failure, capped
+RECONNECT_INITIAL_DELAY = 5.0
+RECONNECT_MAX_DELAY = 60.0
+
 # Command ID management
 CMD_ID_INITIAL = 10
 CMD_ID_MAX = 1_000_000

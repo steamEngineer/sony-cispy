@@ -4,10 +4,10 @@ A modern Python library for controlling Sony Audio/Video Receivers (AVRs) and So
 
 ## Features
 
-- **Robust Connection Handling**: Command ID tracking with futures for reliable request/response matching
-- **Universal API**: Generic `get_feature()` and `set_feature()` methods that work with any CIS-IP2 feature
+- **Robust Connection Handling**: Command ID tracking with futures; auto-reconnect with backoff
+- **Universal API**: Generic `get_feature()` / `set_feature()` (return `None` on timeout/miss)
 - **Real-time Notifications**: Register callbacks to receive real-time updates when device state changes
-- **JSON Stream Decoding**: Handles multiple JSON messages arriving in a single read
+- **JSON Stream Decoding**: Multi-message reads with unparsed remainder across TCP fragments
 - **Timeout Handling**: Configurable timeouts for all network operations
 - **Command Discovery**: Access to the full CIS-IP2 command set via `commands_dict`
 - **Async/Await**: Built with modern Python async/await patterns
@@ -34,11 +34,11 @@ async def main():
     await client.connect()
     
     try:
-        # Get power state
+        # Get power state (None on timeout / miss / NAK / ERR)
         power = await client.get_feature("main.power")
         print(f"Power: {power}")
         
-        # Set volume
+        # Set volume (ACK / NAK / ERR, or None on timeout)
         result = await client.set_feature("main.volumestep", 50)
         print(f"Volume set: {result}")
         

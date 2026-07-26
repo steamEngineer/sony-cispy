@@ -16,11 +16,11 @@ async def example_basic_usage():
         await client.connect()
         print("Connected!")
 
-        # Get power state
+        # Get power state (None on timeout / miss / NAK / ERR)
         power = await client.get_feature("main.power")
         print(f"Current power state: {power}")
 
-        # Set volume
+        # Set volume (ACK / NAK / ERR, or None on timeout)
         result = await client.set_feature("main.volumestep", 10)
         print(f"Set volume result: {result}")
 
